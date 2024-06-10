@@ -76,6 +76,7 @@ services:
     depends_on:
       - zookeeper
       - kafka
+      - kafdrop
     networks:
       - broker-kafka
 

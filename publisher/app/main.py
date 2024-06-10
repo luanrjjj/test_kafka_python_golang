@@ -1,9 +1,16 @@
 import time
+import json
+import requests
+import asyncio
+import logging
+from requests.structures import CaseInsensitiveDict
 
 from app.core.gateways.kafka import Kafka
 from app.dependencies.kafka import get_kafka_instance
 from app.enum import EnvironmentVariables
 from app.routers import publisher
+from fastapi import BackgroundTasks, FastAPI
+
 
 
 from dotenv import load_dotenv
@@ -11,6 +18,7 @@ from dotenv import load_dotenv
 from fastapi import Depends, FastAPI, Request
 
 load_dotenv()
+logger = logging.getLogger(__name__)
 
 
 app = FastAPI(title='Kafka Publisher API')
@@ -41,8 +49,45 @@ async def add_process_time_header(request: Request, call_next):
 
 
 @app.get('/')
-def get_root():
-    return {'message': 'API is running...'}
+def get_root():     
+    return {'message': 'Financial API is Running...'}
+
+
+@app.post('/financial_data')
+def get_financial_data(background_tasks: BackgroundTasks):
+    url = "https://www.alphavantage.co/query?function=TIME_SERIES_DAILY&symbol=IBM&apikey=demo"
+    headers = CaseInsensitiveDict()
+    headers["Accept"] = "application/json"
+    
+    response = requests.get(url, headers=headers)
+
+    financial_data = response.json()
+
+    time_series = financial_data['Time Series (Daily)']
+
+    streaming_data(time_series, background_tasks)
+    # # Send the data to Kafka
+    # await kafka_server.aioproducer.send_and_wait(
+    #     topic=EnvironmentVariables.KAFKA_TOPIC_NAME.get_env(),
+    #     value=json.dumps(financial_data).encode('utf-8')
+    # )
+
+    return financial_data
+
+
+def streaming_data(data, background_tasks: BackgroundTasks):
+    background_tasks.add_task(send_to_kafka, data)
+        
+
+async def send_to_kafka(data):
+    # print("suahdaushdudhas",data)
+    for each_day in data:
+        await asyncio.sleep(1)
+        print(each_day)
+        await kafka_server.aioproducer.send_and_wait(
+            topic=EnvironmentVariables.KAFKA_TOPIC_NAME.get_env(),
+            value=json.dumps(each_day).encode('utf-8')
+        )
 
 
 app.include_router(
