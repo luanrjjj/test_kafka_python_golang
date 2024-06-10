@@ -9,15 +9,13 @@ from app.core.gateways.kafka import Kafka
 from app.dependencies.kafka import get_kafka_instance
 from app.enum import EnvironmentVariables
 from app.routers import publisher
-from fastapi import BackgroundTasks, FastAPI
 
-
-
+from fastapi import BackgroundTasks, FastAPI, Request, HTTPException
 from dotenv import load_dotenv
 
-from fastapi import Depends, FastAPI, Request
 
 load_dotenv()
+
 logger = logging.getLogger(__name__)
 
 
@@ -53,9 +51,10 @@ def get_root():
     return {'message': 'Financial API is Running...'}
 
 
-@app.post('/financial_data')
-def get_financial_data(background_tasks: BackgroundTasks):
-    url = "https://www.alphavantage.co/query?function=TIME_SERIES_DAILY&symbol=IBM&apikey=demo"
+@app.get('/financial_data/{symbol}')
+def get_financial_data(symbol: str, background_tasks: BackgroundTasks):
+    url = "https://www.alphavantage.co/query?function=TIME_SERIES_DAILY&symbol=" + symbol + "&apikey=demo"
+    print(url)
     headers = CaseInsensitiveDict()
     headers["Accept"] = "application/json"
     
@@ -63,14 +62,12 @@ def get_financial_data(background_tasks: BackgroundTasks):
 
     financial_data = response.json()
 
-    time_series = financial_data['Time Series (Daily)']
+    if 'Time Series (Daily)' not in financial_data:
+        raise HTTPException(status_code=404, detail="Item not found")
 
+    time_series = financial_data['Time Series (Daily)']
+    print(time_series)
     streaming_data(time_series, background_tasks)
-    # # Send the data to Kafka
-    # await kafka_server.aioproducer.send_and_wait(
-    #     topic=EnvironmentVariables.KAFKA_TOPIC_NAME.get_env(),
-    #     value=json.dumps(financial_data).encode('utf-8')
-    # )
 
     return financial_data
 
@@ -80,19 +77,14 @@ def streaming_data(data, background_tasks: BackgroundTasks):
         
 
 async def send_to_kafka(data):
-    # print("suahdaushdudhas",data)
     for each_day in data:
         await asyncio.sleep(1)
-        print(each_day)
+        print("each value", data[each_day])
         await kafka_server.aioproducer.send_and_wait(
             topic=EnvironmentVariables.KAFKA_TOPIC_NAME.get_env(),
-            value=json.dumps(each_day).encode('utf-8')
+            value=json.dumps({
+                'date': each_day,
+                'data': data[each_day]
+            }).encode('utf-8')
         )
 
-
-app.include_router(
-    publisher.router,
-    prefix="/producer",
-    tags=["producer"],
-    dependencies=[Depends(get_kafka_instance)],
-)
