@@ -18,7 +18,6 @@ RUN apt update && \
 # Make a directory for our app
 WORKDIR /publisher
 
-
 # Install dependencies
 COPY requirements.txt .
 RUN pip install --upgrade pip && pip install -r requirements.txt
