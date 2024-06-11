@@ -27,6 +27,18 @@ services:
 
   python-app:
     build: ./python-app
+  consumer:
+    container_name: consumer
+    build:
+      context: ./consumer
+      dockerfile: Dockerfile
+    environment:
+      - KAFKA_TOPIC_NAME=topic_test
+      - KAFKA_SERVER=kafka
+      - KAFKA_PORT=29092
+    ports:
+      - 8080:8080
+    restart: "always"
     depends_on:
       - kafka
 
